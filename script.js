@@ -1,15 +1,15 @@
 import { addUser, removeUser } from "./user-manager.mjs";
 import { sendMessage } from "./network.js";
 
-const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-const audioQueue = [];
-let playbackStartTime = null;
+let audioContext;
 
 document.onload(() => {
     startRecording();
 });
 
 async function startRecording() {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+
     try {
         const userMediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
@@ -20,7 +20,7 @@ async function startRecording() {
         source.connect(audioWorkletNode);
 
         audioWorkletNode.port.onmessage = (event) => {
-            const audioData = event.data;
+            const audioData = event.data.buffer;
             sendAudioData(audioData);
         };
 
@@ -29,60 +29,74 @@ async function startRecording() {
     }
 }
 
-async function sendAudioData(audioData) {
-    const audioBuffer = audioData.buffer;
-
+async function sendAudioData(audioBuffer) {
     try {
         const audioPacket = {
             type: 'audio',
-            data: encryptedAudio
+            data: audioBuffer
         };
-
         sendMessage(JSON.stringify(audioPacket));
-
     } catch (error) {
         console.error('Fehler beim Senden der Audio-Daten:', error);
     }
 }
 
 async function processReceivedData(data){
-    const JSONData = await JSON.parse(data);
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const JSONData = JSON.parse(data);
     if (JSONData.type === 'userJoin') {
         addUser(JSONData.data.name);
     } else if (JSONData.type === 'userLeave') {
         removeUser(JSONData.data.name);
     } else if(JSONData.type === 'audio') {
-        const encryptedAudioData = JSONData.data;
-        const timestamp = JSONData.timestamp;
-        try {
-            const decryptedAudioBuffer = await decryptMessage(encryptedAudioData);
-            audioQueue.push({ buffer: decryptedAudioBuffer, timestamp: timestamp });
-            scheduleNextPlayback();
-        } catch (error) {
-            console.error('Fehler beim Entschlüsseln der Audio-Daten:', error);
+        const audioData = JSONData.data;
+        const listenerPosition = JSONData.listenerPosition;
+        const senderPosition = JSONData.soundSourcePosition;
+        const listenerForward = JSONData.forwardVecor;
+        const listenerUp = JSONData.upVector;
+
+        if (audioData && senderPosition && audioContext && audioContext.listener && listenerForward && listenerUp) {
+            audioContext.listener.setPosition(listenerPosition.x, listenerPosition.y, listenerPosition.z);
+
+            audioContext.listener.forwardX.value = listenerForward.x;
+            audioContext.listener.forwardY.value = listenerForward.y;
+            audioContext.listener.forwardZ.value = listenerForward.z;
+
+            audioContext.listener.upX.value = listenerUp.x;
+            audioContext.listener.upY.value = listenerUp.y;
+            audioContext.listener.upZ.value = listenerUp.z;
+
+            playNetworkedAudio(audioData, senderPosition);
+        } else {
+            console.warn("Audio-Paket ohne Audio-Daten oder Senderposition erhalten.");
         }
     } else {
         console.error('Unbekannter Nachrichtentyp:', JSONData.type);
     }
 }
 
-function scheduleNextPlayback() {
-    if (audioQueue.length > 0 && playbackStartTime === null) {
-        playbackStartTime = audioContext.currentTime + 0.1;
-    }
+function playNetworkedAudio(audioBuffer, senderPosition) {
+    audioContext.decodeAudioData(audioBuffer).then(buffer => {
+        const source = audioContext.createBufferSource();
+        source.buffer = buffer;
 
-    while (audioQueue.length > 0 && audioQueue[0].timestamp <= (playbackStartTime * 1000)) {
-        const audioItem = audioQueue.shift();
-        playQueuedAudio(audioItem.buffer, playbackStartTime);
-        playbackStartTime += audioItem.buffer.duration;
-    }
+        const gainNode = audioContext.createGain();
+        const pannerNode = audioContext.createPanner();
+
+        pannerNode.setPosition(senderPosition.x, senderPosition.y, senderPosition.z);
+
+        pannerNode.distanceModel = 'inverse';
+        pannerNode.refDistance = 1;
+        pannerNode.rolloffFactor = 1;
+        pannerNode.panningModel = 'HRTF';
+
+        source.connect(gainNode);
+        gainNode.connect(pannerNode);
+        pannerNode.connect(audioContext.destination);
+        source.start();
+    }).catch(error => {
+        console.error('Fehler beim Dekodieren und Abspielen von Netzwerk-Audio:', error);
+    });
 }
-
-function playQueuedAudio(audioBuffer, startTime) {
-    const source = audioContext.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(audioContext.destination);
-    source.start(startTime);
-}
-
-setInterval(scheduleNextPlayback, 1);
