@@ -41,7 +41,7 @@ async function sendAudioData(audioBuffer) {
     }
 }
 
-async function processReceivedData(data){
+export async function processReceivedData(data){
     if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
