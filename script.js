@@ -3,9 +3,9 @@ import { sendMessage } from "./network.js";
 
 let audioContext;
 
-document.onload(() => {
+document.onload = function() {
     startRecording();
-});
+};
 
 async function startRecording() {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
