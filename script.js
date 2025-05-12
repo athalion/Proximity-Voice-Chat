@@ -4,7 +4,7 @@ import { sendMessage } from "./network.js";
 let audioContext;
 
 document.onload = function() {
-    startRecording();
+    showPopup('Connecting to server...');
 };
 
 document.onclose = function() {
@@ -37,6 +37,7 @@ async function startRecording() {
 
     } catch (error) {
         console.error('Fehler beim Starten der Audioaufnahme:', error);
+        showPopup('Error starting audio recording: ' + error.message);
     }
 }
 
@@ -49,6 +50,7 @@ async function sendAudioData(audioBuffer) {
         sendMessage(JSON.stringify(audioPacket));
     } catch (error) {
         console.error('Fehler beim Senden der Audio-Daten:', error);
+        showPopup('Error sending audio data: ' + error.message);
     }
 }
 
@@ -96,6 +98,8 @@ export async function processReceivedData(data){
             break;
         default:
             console.error('Unbekannter Nachrichtentyp:', JSONData.type);
+            showPopup('Received unknown message type: ' + JSONData.type);
+            break;
     }
 }
 
@@ -120,5 +124,29 @@ function playNetworkedAudio(audioBuffer, senderPosition) {
         source.start();
     }).catch(error => {
         console.error('Fehler beim Dekodieren und Abspielen von Netzwerk-Audio:', error);
+        showPopup("An error occurred! Please try again.");
     });
 }
+
+// Popup functionality
+const popup = document.getElementById('popup');
+const popupClose = document.getElementById('popup-close');
+const popupMessage = document.getElementById('popup-message');
+
+// Function to show the popup with a custom message
+export function showPopup(message) {
+    popupMessage.textContent = message;
+    popup.classList.remove('hidden');
+    popup.classList.add('show');
+}
+
+// Function to hide the popup
+export function hidePopup() {
+    popup.classList.remove('show');
+    setTimeout(() => {
+        popup.classList.add('hidden');
+    }, 300); // Match the CSS transition duration
+}
+
+// Event listener for the close button
+popupClose.addEventListener('click', hidePopup);
