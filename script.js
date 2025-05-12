@@ -1,4 +1,4 @@
-import { addUser, removeUser } from "./user-manager.mjs";
+import { addUser, removeUser, clearUserList, updateLayout } from "./user-manager.mjs";
 import { sendMessage } from "./network.js";
 
 let audioContext;
@@ -46,34 +46,45 @@ export async function processReceivedData(data){
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
     const JSONData = JSON.parse(data);
-    if (JSONData.type === 'userJoin') {
-        addUser(JSONData.data.name);
-    } else if (JSONData.type === 'userLeave') {
-        removeUser(JSONData.data.name);
-    } else if(JSONData.type === 'audio') {
-        const audioData = JSONData.data;
-        const listenerPosition = JSONData.listenerPosition;
-        const senderPosition = JSONData.soundSourcePosition;
-        const listenerForward = JSONData.forwardVecor;
-        const listenerUp = JSONData.upVector;
+    switch (JSONData.type) {
+        case 'userJoin':
+            addUser(JSONData.data.name);
+            break;
+        case 'userLeave':
+            removeUser(JSONData.data.name);
+            break;
+        case 'userList':
+            clearUserList();
+            JSONData.data.forEach(user => {
+                addUser(user.name);
+            });
+            updateLayout();
+            break;
+        case 'audio':
+            const audioData = JSONData.data;
+            const listenerPosition = JSONData.listenerPosition;
+            const senderPosition = JSONData.soundSourcePosition;
+            const listenerForward = JSONData.forwardVecor;
+            const listenerUp = JSONData.upVector;
 
-        if (audioData && senderPosition && audioContext && audioContext.listener && listenerForward && listenerUp) {
-            audioContext.listener.setPosition(listenerPosition.x, listenerPosition.y, listenerPosition.z);
+            if (audioData && senderPosition && audioContext && audioContext.listener && listenerForward && listenerUp) {
+                audioContext.listener.setPosition(listenerPosition.x, listenerPosition.y, listenerPosition.z);
 
-            audioContext.listener.forwardX.value = listenerForward.x;
-            audioContext.listener.forwardY.value = listenerForward.y;
-            audioContext.listener.forwardZ.value = listenerForward.z;
+                audioContext.listener.forwardX.value = listenerForward.x;
+                audioContext.listener.forwardY.value = listenerForward.y;
+                audioContext.listener.forwardZ.value = listenerForward.z;
 
-            audioContext.listener.upX.value = listenerUp.x;
-            audioContext.listener.upY.value = listenerUp.y;
-            audioContext.listener.upZ.value = listenerUp.z;
+                audioContext.listener.upX.value = listenerUp.x;
+                audioContext.listener.upY.value = listenerUp.y;
+                audioContext.listener.upZ.value = listenerUp.z;
 
-            playNetworkedAudio(audioData, senderPosition);
-        } else {
-            console.warn("Audio-Paket ohne Audio-Daten oder Senderposition erhalten.");
-        }
-    } else {
-        console.error('Unbekannter Nachrichtentyp:', JSONData.type);
+                playNetworkedAudio(audioData, senderPosition);
+            } else {
+                console.warn("Audio-Paket ohne Audio-Daten oder Senderposition erhalten.");
+            }
+            break;
+        default:
+            console.error('Unbekannter Nachrichtentyp:', JSONData.type);
     }
 }
 
