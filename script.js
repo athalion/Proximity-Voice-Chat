@@ -130,7 +130,6 @@ function playNetworkedAudio(audioBuffer, senderPosition) {
 
 // Popup functionality
 const popup = document.getElementById('popup');
-const popupClose = document.getElementById('popup-close');
 const popupMessage = document.getElementById('popup-message');
 
 // Function to show the popup with a custom message
@@ -147,6 +146,3 @@ export function hidePopup() {
         popup.classList.add('hidden');
     }, 300); // Match the CSS transition duration
 }
-
-// Event listener for the close button
-popupClose.addEventListener('click', hidePopup);
