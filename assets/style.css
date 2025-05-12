@@ -162,3 +162,28 @@
     transform-origin: -17vw 4vh;
     box-shadow: -100vmin 0 12.735021417227982vmin currentColor;
 }
+
+#user-list {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.user-item {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    background-color: #fff;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    color: #000;
+    animation: move 10s linear infinite;
+}
