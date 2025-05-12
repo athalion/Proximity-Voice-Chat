@@ -7,6 +7,17 @@ document.onload = function() {
     startRecording();
 };
 
+document.onclose = function() {
+    sendMessage(JSON.stringify({ type: 'userLeave', data: { name: 'User' } }));
+    if (audioContext) {
+        audioContext.close().then(() => {
+            console.log('AudioContext geschlossen.');
+        }).catch(error => {
+            console.error('Fehler beim Schließen des AudioContext:', error);
+        });
+    }
+};
+
 async function startRecording() {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -48,15 +59,15 @@ export async function processReceivedData(data){
     const JSONData = JSON.parse(data);
     switch (JSONData.type) {
         case 'userJoin':
-            addUser(JSONData.data.name);
+            addUser(JSONData.data.uuid, JSONData.data.name);
             break;
         case 'userLeave':
-            removeUser(JSONData.data.name);
+            removeUser(JSONData.data.uuid);
             break;
         case 'userList':
             clearUserList();
             JSONData.data.forEach(user => {
-                addUser(user.name);
+                addUser(user.uuid, user.name);
             });
             updateLayout();
             break;

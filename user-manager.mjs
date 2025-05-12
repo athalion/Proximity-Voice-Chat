@@ -1,17 +1,18 @@
 const userList = document.getElementById('user-list');
 
-export function addUser(username) {
+export function addUser(uuid, username) {
     const userItem = document.createElement('div');
     userItem.classList.add('user-item');
     userItem.textContent = username;
+    userItem.dataset.uuid = uuid;
     userList.appendChild(userItem);
     updateLayout();
 }
 
-export function removeUser(username) {
+export function removeUser(uuid) {
     const userItems = userList.getElementsByClassName('user-item');
     for (let i = 0; i < userItems.length; i++) {
-        if (userItems[i].textContent === username) {
+        if (userItems[i].dataset.uuid === uuid) {
             userList.removeChild(userItems[i]);
             break;
         }
