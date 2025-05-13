@@ -18,7 +18,7 @@ document.onclose = function() {
     }
 };
 
-async function startRecording() {
+export async function startRecording() {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
 
     try {
@@ -72,6 +72,9 @@ export async function processReceivedData(data){
                 addUser(user.uuid, user.name);
             });
             updateLayout();
+            break;
+        case 'userKick':
+            window.close();
             break;
         case 'audio':
             const audioData = JSONData.data;

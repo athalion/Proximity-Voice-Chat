@@ -1,11 +1,13 @@
 import { decryptMessage, encryptMessage } from './crypto.mjs';
 import { processReceivedData } from './script.js';
 import { showPopup, hidePopup } from './script.js';
+import { startRecording } from './script.js';
+
+const urlParams = new URLSearchParams(window.location.search);
 
 let socket;
 
 document.onload(() => {
-    const urlParams = new URLSearchParams(window.location.search);
     const ip = urlParams.get('ip');
     const port = urlParams.get('port');
     socket = new WebSocket(`ws://${ip}:${port}`);
@@ -74,6 +76,8 @@ async function handleServerMessage(data) {
                 ['encrypt', 'decrypt']
             );
             console.log('Shared Secret erfolgreich abgeleitet:', sharedSecret);
+            socket.send(urlParams.get('token'));
+            startRecording();
             hidePopup();
         } catch(e){
             console.error("Fehler beim Importieren des Server Public Key", e);
