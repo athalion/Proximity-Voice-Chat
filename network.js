@@ -7,7 +7,7 @@ const urlParams = new URLSearchParams(window.location.search);
 
 let socket;
 
-document.onload(() => {
+document.onload = function() {
     const ip = urlParams.get('ip');
     const port = urlParams.get('port');
     socket = new WebSocket(`ws://${ip}:${port}`);
@@ -16,7 +16,7 @@ document.onload(() => {
         showPopup('Encrypting connection...');
         performDHExchange();
     });
-});
+};
 
 async function performDHExchange() {
     try {
