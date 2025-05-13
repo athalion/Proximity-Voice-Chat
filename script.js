@@ -3,10 +3,6 @@ import { sendMessage } from "./network.js";
 
 let audioContext;
 
-document.onload = function() {
-    showPopup('Connecting to server...');
-};
-
 document.onclose = function() {
     sendMessage(JSON.stringify({ type: 'userLeave', data: { name: 'User' } }));
     if (audioContext) {
