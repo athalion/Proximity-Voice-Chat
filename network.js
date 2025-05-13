@@ -31,27 +31,29 @@ document.onload = function() {
     });
 };
 
-// Helper to read a length-prefixed value from a DataView (big-endian 4-byte length)
-function readLengthPrefixed(view, offset) {
-    const len = view.getUint32(offset, false); // big-endian
-    offset += 4;
-    const value = new Uint8Array(view.buffer, view.byteOffset + offset, len);
-    offset += len;
-    return { value, offset };
+// Helper to decode Base64 to Uint8Array
+function base64ToBytes(b64) {
+    const bin = atob(b64);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; ++i) arr[i] = bin.charCodeAt(i);
+    return arr;
+}
+
+// Helper to encode Uint8Array to Base64
+function bytesToBase64(arr) {
+    let bin = '';
+    for (let i = 0; i < arr.length; ++i) bin += String.fromCharCode(arr[i]);
+    return btoa(bin);
 }
 
 // Receives and imports DH params, then generates client key pair
-async function importDHParamsAndStartExchange(encodedDHParams) {
+async function importDHParamsAndStartExchange(jsonString) {
     try {
-        // Parse: [4][p][4][g]
-        const view = new DataView(encodedDHParams);
-        let offset = 0;
-        const { value: prime, offset: offset2 } = readLengthPrefixed(view, offset);
-        const { value: generator } = readLengthPrefixed(view, offset2);
+        const obj = JSON.parse(jsonString);
+        const prime = base64ToBytes(obj.data.prime);
+        const generator = base64ToBytes(obj.data.generator);
 
-        // Import params for WebCrypto
         dhParams = { prime, generator };
-
         await generateClientDHKeyPair(dhParams);
     } catch (error) {
         console.error('Fehler beim Importieren der DH-Parameter:', error);
@@ -81,14 +83,16 @@ async function generateClientDHKeyPair(dhParams) {
 
 async function sendClientPublicKey(publicKey) {
     try {
-        const clientPublicKeyEncoded = await window.crypto.subtle.exportKey('raw', publicKey);
-        // Send as [4][key]
-        const len = clientPublicKeyEncoded.byteLength;
-        const buf = new Uint8Array(4 + len);
-        const view = new DataView(buf.buffer);
-        view.setUint32(0, len, false); // big-endian
-        buf.set(new Uint8Array(clientPublicKeyEncoded), 4);
-        socket.send(buf);
+        const clientPublicKeyEncoded = new Uint8Array(await window.crypto.subtle.exportKey('raw', publicKey));
+        const msg = JSON.stringify(
+            {
+                type: 'key',
+                data: {
+                    key: bytesToBase64(clientPublicKeyEncoded)
+                }
+            }
+        );
+        socket.send(msg);
     } catch (error) {
         console.error('Fehler beim Exportieren des Client Public Keys:', error);
         showPopup("An error occurred! Please try again.");
@@ -99,12 +103,10 @@ async function handleServerMessage(data) {
     if (!sharedSecret) {
         try {
             if (dhExchangeStep === 0) {
-                // First message: DH params from server
-                await importDHParamsAndStartExchange(data);
+                await importDHParamsAndStartExchange(typeof data === 'string' ? data : await data.text());
             } else if (dhExchangeStep === 1) {
-                // Second message: server public key ([4][key])
-                const view = new DataView(data);
-                const { value: serverPubKey } = readLengthPrefixed(view, 0);
+                const obj = JSON.parse(typeof data === 'string' ? data : await data.text());
+                const serverPubKey = base64ToBytes(obj.data.key);
 
                 const serverPublicKey = await window.crypto.subtle.importKey(
                     'raw',

@@ -72,6 +72,12 @@ export async function processReceivedData(data){
         case 'userKick':
             window.close();
             break;
+        case 'roomTerminate':
+            window.close();
+            break;
+        case 'invalidToken':
+            showPopup('Invalid token! Please check your link.');
+            break;
         case 'audio':
             const audioData = JSONData.data;
             const listenerPosition = JSONData.listenerPosition;
