@@ -9,7 +9,7 @@ let socket;
 document.addEventListener('DOMContentLoaded', function() {
     const ip = urlParams.get('ip');
     const port = urlParams.get('port');
-    socket = new WebSocket(`ws://${ip}:${port}`);
+    socket = new WebSocket(`wss://${ip}:${port}`);
     socket.addEventListener('open', () => {
         console.log('Verbindung zum Server hergestellt');
         showPopup('Verbindung hergestellt...');
