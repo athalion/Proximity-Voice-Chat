@@ -10,7 +10,8 @@ let sharedSecret = null;
 let clientPrivate = null;
 let clientPublic = null;
 let dhParams = null;
-let dhExchangeStep = 0; // 0: waiting for params, 1: waiting for server public key
+let dhExchangeStep = 0;
+let sharedSecretKey;
 
 document.addEventListener('DOMContentLoaded', function() {
     const ip = urlParams.get('ip');
@@ -45,8 +46,13 @@ function base64ToBytes(b64) {
 
 // Helper to encode Uint8Array to Base64
 function bytesToBase64(arr) {
+    // arr: Array (z.B. von toByteArray())
+    // Schritt 1: Uint8Array erzwingen
+    arr = Uint8Array.from(arr.map(x => (x + 256) % 256)); // JSBN gibt manchmal negative Werte!
+    // Schritt 2: Binärstring erzeugen
     let bin = '';
     for (let i = 0; i < arr.length; ++i) bin += String.fromCharCode(arr[i]);
+    // Schritt 3: Base64 kodieren
     return btoa(bin);
 }
 
@@ -68,7 +74,8 @@ async function importDHParamsAndStartExchange(jsonString) {
         clientPublic = generator.modPow(clientPrivate, prime);
 
         // 3. Public Key an Server senden (Base64)
-        const clientPubB64 = btoa(clientPublic.toByteArray().reduce((s, b) => s + String.fromCharCode(b), ''));
+        const clientPubArr = clientPublic.toByteArray();
+        const clientPubB64 = bytesToBase64(clientPubArr);
         socket.send(JSON.stringify({
             type: 'key',
             data: { key: clientPubB64 }
@@ -79,7 +86,6 @@ async function importDHParamsAndStartExchange(jsonString) {
     }
 }
 
-// Wenn Server Public Key kommt:
 async function handleServerMessage(data) {
     if (!sharedSecret) {
         if (dhExchangeStep === 0) {
@@ -93,10 +99,15 @@ async function handleServerMessage(data) {
             sharedSecret = serverPubKey.modPow(clientPrivate, dhParams.prime);
 
             // sharedSecret ist ein BigInteger, du kannst daraus einen Key ableiten (z.B. SHA-256 Hash)
-            // Beispiel: SHA-256 Hash als AES-Key
             const secretBytes = sharedSecret.toByteArray();
             const hashBuffer = await window.crypto.subtle.digest('SHA-256', new Uint8Array(secretBytes));
-            // hashBuffer als AES-Key verwenden
+            sharedSecretKey = await window.crypto.subtle.importKey(
+                "raw",
+                hashBuffer,
+                { name: "AES-CBC" },
+                false,
+                ["encrypt", "decrypt"]
+            );
 
             // Jetzt kannst du verschlüsselte Kommunikation starten
             socket.send(urlParams.get('token'));
@@ -105,7 +116,7 @@ async function handleServerMessage(data) {
             dhExchangeStep = 2;
         }
     } else {
-        processReceivedData(decryptMessage(data));
+        processReceivedData(await decryptMessage(data));
     }
 }
 
