@@ -13,8 +13,14 @@ document.addEventListener('DOMContentLoaded', function() {
     socket.addEventListener('open', () => {
         console.log('Verbindung zum Server hergestellt');
         showPopup('Verbindung hergestellt...');
-        // Kein DH/Key-Exchange mehr nötig
-        socket.send(urlParams.get('token'));
+        socket.send(JSON.stringify(
+            {
+                type: 'token',
+                data: {
+                    token: urlParams.get('token'),
+                }
+            }
+        ));
         startRecording();
         hidePopup();
     });
