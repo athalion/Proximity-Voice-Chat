@@ -2,7 +2,6 @@ import { decryptMessage, encryptMessage } from './crypto.mjs';
 import { processReceivedData } from './script.js';
 import { showPopup, hidePopup } from './script.js';
 import { startRecording } from './script.js';
-import { BigInteger } from './libs/jsbn.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 
