@@ -11,7 +11,7 @@ let clientKeyPair = null;
 let dhParams = null;
 let dhExchangeStep = 0; // 0: waiting for params, 1: waiting for server public key
 
-document.onload = function() {
+document.addEventListener('DOMContentLoaded', function() {
     const ip = urlParams.get('ip');
     const port = urlParams.get('port');
     socket = new WebSocket(`ws://${ip}:${port}`);
@@ -29,7 +29,7 @@ document.onload = function() {
             console.log('Nachricht vom Server:', data);
         }
     });
-};
+});
 
 // Helper to decode Base64 to Uint8Array
 function base64ToBytes(b64) {
