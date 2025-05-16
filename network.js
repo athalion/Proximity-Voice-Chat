@@ -2,8 +2,7 @@ import { decryptMessage, encryptMessage } from './crypto.mjs';
 import { processReceivedData } from './script.js';
 import { showPopup, hidePopup } from './script.js';
 import { startRecording } from './script.js';
-import { BigInteger } from 'jsbn';
-import { randomBytes } from 'crypto'; // Für Node.js, im Browser musst du window.crypto verwenden
+import { BigInteger } from './libs/jsbn.js';
 
 const urlParams = new URLSearchParams(window.location.search);
 
