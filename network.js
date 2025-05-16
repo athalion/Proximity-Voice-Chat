@@ -23,7 +23,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
     socket.addEventListener('message', async (event) => {
         const data = event.data;
-        if (data instanceof ArrayBuffer) {
+        // Während des DH-Austauschs: Text ODER ArrayBuffer an handleServerMessage
+        if (!sharedSecret) {
+            await handleServerMessage(data);
+        } else if (data instanceof ArrayBuffer) {
             await handleServerMessage(data);
         } else {
             console.log('Nachricht vom Server:', data);
