@@ -2,12 +2,15 @@ import { decryptMessage, encryptMessage } from './crypto.mjs';
 import { processReceivedData } from './script.js';
 import { showPopup, hidePopup } from './script.js';
 import { startRecording } from './script.js';
+import { BigInteger } from 'jsbn';
+import { randomBytes } from 'crypto'; // Für Node.js, im Browser musst du window.crypto verwenden
 
 const urlParams = new URLSearchParams(window.location.search);
 
 let socket;
 let sharedSecret = null;
-let clientKeyPair = null;
+let clientPrivate = null;
+let clientPublic = null;
 let dhParams = null;
 let dhExchangeStep = 0; // 0: waiting for params, 1: waiting for server public key
 
@@ -53,97 +56,55 @@ function bytesToBase64(arr) {
 async function importDHParamsAndStartExchange(jsonString) {
     try {
         const obj = JSON.parse(jsonString);
-        const prime = base64ToBytes(obj.data.prime);
-        const generator = base64ToBytes(obj.data.generator);
+        const prime = new BigInteger(atob(obj.data.prime), 256);
+        const generator = new BigInteger(atob(obj.data.generator), 256);
 
         dhParams = { prime, generator };
-        await generateClientDHKeyPair(dhParams);
+
+        // 1. Client Private Key generieren (zufällig, 2048 Bit)
+        const privBytes = new Uint8Array(256);
+        window.crypto.getRandomValues(privBytes);
+        clientPrivate = new BigInteger(privBytes);
+
+        // 2. Client Public Key berechnen: g^a mod p
+        clientPublic = generator.modPow(clientPrivate, prime);
+
+        // 3. Public Key an Server senden (Base64)
+        const clientPubB64 = btoa(clientPublic.toByteArray().reduce((s, b) => s + String.fromCharCode(b), ''));
+        socket.send(JSON.stringify({
+            type: 'key',
+            data: { key: clientPubB64 }
+        }));
     } catch (error) {
         console.error('Fehler beim Importieren der DH-Parameter:', error);
         showPopup("An error occurred! Please try again.");
     }
 }
 
-async function generateClientDHKeyPair(dhParams) {
-    try {
-        clientKeyPair = await window.crypto.subtle.generateKey(
-            {
-                name: 'DH',
-                prime: dhParams.prime,
-                generator: dhParams.generator,
-            },
-            true,
-            ['deriveKey', 'deriveBits']
-        );
-        console.log('Client DH-Schlüsselpaar generiert:', clientKeyPair);
-        await sendClientPublicKey(clientKeyPair.publicKey);
-        dhExchangeStep = 1; // Now wait for server public key
-    } catch (error) {
-        console.error('Fehler beim Generieren des Client DH-Schlüsselpaares:', error);
-        showPopup("An error occurred! Please try again.");
-    }
-}
-
-async function sendClientPublicKey(publicKey) {
-    try {
-        const clientPublicKeyEncoded = new Uint8Array(await window.crypto.subtle.exportKey('raw', publicKey));
-        const msg = JSON.stringify(
-            {
-                type: 'key',
-                data: {
-                    key: bytesToBase64(clientPublicKeyEncoded)
-                }
-            }
-        );
-        socket.send(msg);
-    } catch (error) {
-        console.error('Fehler beim Exportieren des Client Public Keys:', error);
-        showPopup("An error occurred! Please try again.");
-    }
-}
-
+// Wenn Server Public Key kommt:
 async function handleServerMessage(data) {
     if (!sharedSecret) {
-        try {
-            if (dhExchangeStep === 0) {
-                await importDHParamsAndStartExchange(typeof data === 'string' ? data : await data.text());
-            } else if (dhExchangeStep === 1) {
-                const obj = JSON.parse(typeof data === 'string' ? data : await data.text());
-                const serverPubKey = base64ToBytes(obj.data.key);
+        if (dhExchangeStep === 0) {
+            await importDHParamsAndStartExchange(typeof data === 'string' ? data : await data.text());
+            dhExchangeStep = 1;
+        } else if (dhExchangeStep === 1) {
+            const obj = JSON.parse(typeof data === 'string' ? data : await data.text());
+            const serverPubKey = new BigInteger(atob(obj.data.key), 256);
 
-                const serverPublicKey = await window.crypto.subtle.importKey(
-                    'raw',
-                    serverPubKey,
-                    {
-                        name: 'DH',
-                        prime: dhParams.prime,
-                        generator: dhParams.generator,
-                    },
-                    false,
-                    []
-                );
-                sharedSecret = await window.crypto.subtle.deriveKey(
-                    {
-                        name: 'DH',
-                        public: serverPublicKey,
-                        private: clientKeyPair.privateKey,
-                    },
-                    {
-                        name: 'AES-CBC',
-                        length: 256,
-                    },
-                    true,
-                    ['encrypt', 'decrypt']
-                );
-                console.log('Shared Secret erfolgreich abgeleitet:', sharedSecret);
-                socket.send(urlParams.get('token'));
-                startRecording();
-                hidePopup();
-                dhExchangeStep = 2;
-            }
-        } catch (e) {
-            console.error("Fehler beim DH-Schlüsselaustausch", e);
-            showPopup("An error occurred! Please try again.");
+            // Shared Secret berechnen: (ServerPubKey)^clientPrivate mod prime
+            sharedSecret = serverPubKey.modPow(clientPrivate, dhParams.prime);
+
+            // sharedSecret ist ein BigInteger, du kannst daraus einen Key ableiten (z.B. SHA-256 Hash)
+            // Beispiel: SHA-256 Hash als AES-Key
+            const secretBytes = sharedSecret.toByteArray();
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', new Uint8Array(secretBytes));
+            // hashBuffer als AES-Key verwenden
+
+            // Jetzt kannst du verschlüsselte Kommunikation starten
+            socket.send(urlParams.get('token'));
+            startRecording();
+            hidePopup();
+            dhExchangeStep = 2;
         }
     } else {
         processReceivedData(decryptMessage(data));

@@ -1,31 +1,37 @@
 export async function encryptMessage(message) {
     const iv = window.crypto.getRandomValues(new Uint8Array(16));
-    const encryptedData = await window.crypto.subtle.encrypt(
+    const encoded = new TextEncoder().encode(message);
+
+    const ciphertext = await window.crypto.subtle.encrypt(
         {
-            name: 'AES-CBC',
-            iv: iv,
+            name: "AES-CBC",
+            iv: iv
         },
-        sharedSecret,
-        new TextEncoder().encode(message)
+        sharedSecretKey,
+        encoded
     );
 
-    const result = new Uint8Array(iv.byteLength + encryptedData.byteLength);
-    result.set(iv, 0);
-    result.set(new Uint8Array(encryptedData), iv.byteLength);
-    return result;
+    // IV + Ciphertext zusammenfügen
+    const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+    combined.set(iv, 0);
+    combined.set(new Uint8Array(ciphertext), iv.length);
+    return combined.buffer;
 }
 
-export async function decryptMessage(encryptedMessageWithIV) {
-    const iv = encryptedMessageWithIV.slice(0, 16);
-    const encryptedData = encryptedMessageWithIV.slice(16);
+export async function decryptMessage(data) {
+    // data: ArrayBuffer (IV + Ciphertext)
+    const bytes = new Uint8Array(data);
+    const iv = bytes.slice(0, 16);
+    const ciphertext = bytes.slice(16);
 
-    const decryptedData = await window.crypto.subtle.decrypt(
+    // sharedSecretKey: CryptoKey, vorher erzeugt!
+    const plaintext = await window.crypto.subtle.decrypt(
         {
-            name: 'AES-CBC',
-            iv: iv,
+            name: "AES-CBC",
+            iv: iv
         },
-        sharedSecret,
-        encryptedData
+        sharedSecretKey,
+        ciphertext
     );
-    return new TextDecoder().decode(decryptedData);
+    return new TextDecoder().decode(plaintext);
 }
